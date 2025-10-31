@@ -9,7 +9,8 @@
     "prisma:generate": "dotenv -- prisma generate",
     "prisma:push": "dotenv -- prisma db push",
     "prisma:migrate": "dotenv -- prisma migrate dev",
-    "prisma:seed": "dotenv -- ts-node prisma/seed.ts"
+    "prisma:seed": "dotenv -- ts-node prisma/seed.ts",
+     "prepare": "prisma generate"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
