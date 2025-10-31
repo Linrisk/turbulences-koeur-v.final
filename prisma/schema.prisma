@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Letter {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content          String
+  city             String    @db.VarChar(100)
+  relationshipType String    @map("relationship_type") @db.VarChar(50)
+  is_distributed   Boolean?  @default(false)
+  distributed_at   DateTime? @db.Timestamptz(6)
+  createdAt        DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([city], map: "idx_letters_city")
+  @@index([createdAt], map: "idx_letters_created_at")
+  @@index([is_distributed], map: "idx_letters_distributed")
+  @@index([relationshipType], map: "idx_letters_relationship_type")
+  @@map("letters")
+}
+
+model AdminUser {
+  id           String            @id @default(uuid())
+  login        String            @unique
+  email        String            @unique
+  passwordHash String
+  role         String            @default("admin")
+  createdAt    DateTime          @default(now())
+  sessions     AdminSession[]
+  contentRevs  ContentRevision[] @relation("updatedByUser")
+  pageUpdates  PageContent[]     @relation("updatedByUser")
+}
+
+model MailboxLocation {
+  id          String   @id @default(uuid())
+  city        String
+  address     String
+  latitude    Float?
+  longitude   Float?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model PageContent {
+  id              String            @id @default(uuid())
+  pageKey         String            @unique
+  title           String?
+  content         String
+  metaDescription String?
+  updatedById     String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  revisions       ContentRevision[]
+  updatedBy       AdminUser?        @relation("updatedByUser", fields: [updatedById], references: [id])
+}
+
+model AdminSession {
+  id           String    @id @default(uuid())
+  adminId      String
+  sessionToken String    @unique
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime  @default(now())
+  admin        AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+model ContentRevision {
+  id            String      @id @default(uuid())
+  pageContentId String
+  title         String?
+  content       String
+  updatedById   String?
+  createdAt     DateTime    @default(now())
+  pageContent   PageContent @relation(fields: [pageContentId], references: [id], onDelete: Cascade)
+  updatedBy     AdminUser?  @relation("updatedByUser", fields: [updatedById], references: [id])
+}
+
+model public_Letter {
+  id               String           @id
+  content          String
+  city             String
+  relationshipType RelationshipType
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime
+
+  @@map("Letter")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model admin_sessions {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id      String?      @db.Uuid
+  session_token String       @unique @db.VarChar(255)
+  expires_at    DateTime     @db.Timestamptz(6)
+  ip_address    String?      @db.Inet
+  user_agent    String?
+  created_at    DateTime?    @default(now()) @db.Timestamptz(6)
+  admin_users   admin_users? @relation(fields: [admin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expires_at], map: "idx_admin_sessions_expires")
+  @@index([session_token], map: "idx_admin_sessions_token")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model admin_users {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  login             String              @unique @db.VarChar(50)
+  email             String              @unique @db.VarChar(255)
+  password_hash     String              @db.VarChar(255)
+  role              String?             @default("admin") @db.VarChar(20)
+  created_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  admin_sessions    admin_sessions[]
+  content_revisions content_revisions[]
+  page_contents     page_contents[]
+
+  @@index([login], map: "idx_admin_users_login")
+  @@index([role], map: "idx_admin_users_role")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model content_revisions {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  page_content_id String?        @db.Uuid
+  title           String?
+  content         String
+  updated_by      String?        @db.Uuid
+  created_at      DateTime?      @default(now()) @db.Timestamptz(6)
+  page_contents   page_contents? @relation(fields: [page_content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  admin_users     admin_users?   @relation(fields: [updated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([page_content_id], map: "idx_content_revisions_page_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mailbox_locations {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  city        String    @db.VarChar(100)
+  address     String
+  latitude    Decimal?  @db.Decimal(10, 8)
+  longitude   Decimal?  @db.Decimal(11, 8)
+  description String?
+  is_active   Boolean?  @default(true)
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([is_active], map: "idx_mailbox_locations_active")
+  @@index([city], map: "idx_mailbox_locations_city")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model page_contents {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  page_key          String              @unique @db.VarChar(100)
+  title             String?
+  content           String
+  meta_description  String?
+  updated_by        String?             @db.Uuid
+  created_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  content_revisions content_revisions[]
+  admin_users       admin_users?        @relation(fields: [updated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([page_key], map: "idx_page_contents_page_key")
+}
+
+enum RelationshipType {
+  amoureuse
+  amicale
+  familiale
+}
